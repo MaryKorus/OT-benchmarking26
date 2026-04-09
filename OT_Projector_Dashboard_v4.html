@@ -133,7 +133,7 @@ html,body{background:#080F0F;height:100vh;overflow:hidden;
 
   <div class="footer">
     <div class="legend">
-      <div class="leg-item"><div class="leg-dot" style="background:#FF3B30"></div>Plan</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#C8D0D8"></div>Plan</div>
       <div class="leg-item"><div class="leg-dot" style="background:#FFB300"></div>Implement</div>
       <div class="leg-item"><div class="leg-dot" style="background:#00CAC5"></div>Operationalize</div>
       <div class="leg-item"><div class="leg-dot" style="background:#00C78D"></div>Optimize</div>
@@ -176,18 +176,17 @@ const CONTROLS = [
 
 // 4 bands: Optimizing(3) + Optimized(4) merged
 const BANDS = [
-  {label:"Plan",              color:"#FF3B30", text:"rgba(255,255,255,0.9)", scores:[0]},
+  {label:"Plan",              color:"#C8D0D8", text:"rgba(0,0,0,0.8)",       scores:[0]},
   {label:"Implement",         color:"#FFB300", text:"rgba(0,0,0,0.8)",       scores:[1]},
   {label:"Operationalize",    color:"#00CAC5", text:"rgba(0,0,0,0.8)",       scores:[2]},
   {label:"Optimize",          color:"#00C78D", text:"rgba(0,0,0,0.8)",       scores:[3,4]},
 ];
 
 const PROFILES = [
-  {label:"Early Stage",          threshold:0.8,  color:"#FF3B30"},
-  {label:"Building Foundations", threshold:1.8,  color:"#FFB300"},
-  {label:"Operationalizing",     threshold:2.8,  color:"#00CAC5"},
-  {label:"Optimizing",           threshold:3.5,  color:"#00C78D"},
-  {label:"Optimized",            threshold:99,   color:"#7C3AED"},
+  {label:"Planning",         threshold:0.8,  color:"#C8D0D8"},
+  {label:"Implementing",     threshold:1.8,  color:"#FFB300"},
+  {label:"Operationalizing", threshold:2.8,  color:"#00CAC5"},
+  {label:"Optimizing",       threshold:99,   color:"#00C78D"},
 ];
 
 // Industry colors for the side panel
