@@ -225,11 +225,14 @@ async function loadRoom() {
     try { json = JSON.parse(text); } catch(e) { return []; }
     const rows = json.value || json.body?.value || json.body || json || [];
     const arr = Array.isArray(rows) ? rows : [];
-    return arr.filter(r => r && r.CC01 !== undefined).map(r => ({
+    return arr.filter(r => r && (r.CC01 !== undefined || r.OData__x0043_C01 !== undefined)).map(r => ({
       industry: r.Industry || r.industry || "Other",
       scores: [
-        Number(r.CC01)||0, Number(r.CC02)||0,
-        Number(r.CC03)||0, Number(r.CC04)||0, Number(r.CC05)||0
+        Number(r.CC01 || r.OData__x0043_C01)||0,
+        Number(r.CC02 || r.OData__x0043_C02)||0,
+        Number(r.CC03 || r.OData__x0043_C03)||0,
+        Number(r.CC04 || r.OData__x0043_C04)||0,
+        Number(r.CC05 || r.OData__x0043_C05)||0
       ],
     }));
   } catch(e) { return []; }
