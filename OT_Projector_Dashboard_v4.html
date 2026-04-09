@@ -225,7 +225,9 @@ async function loadRoom() {
     try { json = JSON.parse(text); } catch(e) { return []; }
     const rows = json.value || json.body?.value || json.body || json || [];
     const arr = Array.isArray(rows) ? rows : [];
-    return arr.filter(r => r && (r.CC01 !== undefined || r.OData__x0043_C01 !== undefined)).map(r => ({
+    console.log("RAW first row keys:", arr[0] ? Object.keys(arr[0]).join(", ") : "no rows");
+    console.log("RAW first row:", JSON.stringify(arr[0]));
+    const mapped = arr.filter(r => r && (r.CC01 !== undefined || r.OData__x0043_C01 !== undefined)).map(r => ({
       industry: r.Industry || r.industry || "Other",
       scores: [
         Number(r.CC01 || r.OData__x0043_C01)||0,
@@ -235,6 +237,9 @@ async function loadRoom() {
         Number(r.CC05 || r.OData__x0043_C05)||0
       ],
     }));
+    console.log("MAPPED first row:", JSON.stringify(mapped[0]));
+    console.log("Total rows:", mapped.length);
+    return mapped;
   } catch(e) { return []; }
 }
 
