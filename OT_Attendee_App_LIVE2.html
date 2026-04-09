@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>OT Security Maturity Assessment | Dragos</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #0A1212; min-height: 100vh; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  button { cursor: pointer; transition: opacity 0.1s, transform 0.1s; -webkit-tap-highlight-color: transparent; }
+  button:active { transform: scale(0.97); opacity: 0.9; }
+  a { color: #00CAC5; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useCallback, useEffect } = React;
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                        CONFIGURATION                            ║
+// ║  This is the only section you need to edit.                     ║
+// ╚══════════════════════════════════════════════════════════════════╝
+const CONFIG = {
+
+  // ── Mode ──────────────────────────────────────────────────────────
+  // true  = use simulated room data (no backend needed)
+  // false = use Power Automate URLs below
+  MOCK_MODE: false,
+
+  // ── Power Automate URLs ───────────────────────────────────────────
+  // Paste the URLs your IT team gives you here, then set MOCK_MODE: false
+  SUBMIT_URL: "https://default7af3104dffed46a5bae925f0612d49.c5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b2ed437737634d2296586158e80694b8/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=hGdzN3lpo_SgviY0spWuwkbbZVk-8O4f1HUbJJ_PEAI",
+  READ_URL:   "https://default7af3104dffed46a5bae925f0612d49.c5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8e082787aacc4a7c99be610bc9bdc89a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qBPk1ZsgCG0l4BT9wcCIYVdCvRAjyYlN35OzJ2GA2FI",
+
+};
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                    END OF CONFIGURATION                         ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+
+// ── Mock room data (industry-tagged) ─────────────────────────────────────
+const MOCK_ROOM = [
+  {industry:"Manufacturing",        scores:[1,1,0,1,1]},
+  {industry:"Electric / Utilities", scores:[2,1,1,0,1]},
+  {industry:"Oil & Gas",            scores:[1,2,1,1,0]},
+  {industry:"Manufacturing",        scores:[0,1,0,0,1]},
+  {industry:"Water & Wastewater",   scores:[2,2,1,1,2]},
+  {industry:"Electric / Utilities", scores:[1,1,1,0,1]},
+  {industry:"Oil & Gas",            scores:[2,1,2,1,1]},
+  {industry:"Manufacturing",        scores:[1,0,1,1,0]},
+  {industry:"Chemical",             scores:[3,2,2,1,2]},
+  {industry:"Electric / Utilities", scores:[2,2,1,2,1]},
+  {industry:"Manufacturing",        scores:[1,2,1,1,2]},
+  {industry:"Oil & Gas",            scores:[2,1,1,1,1]},
+  {industry:"Mining",               scores:[3,2,2,2,3]},
+  {industry:"Manufacturing",        scores:[1,1,0,1,1]},
+];
+
+// ── Data layer ────────────────────────────────────────────────────────────
+async function submitResult(industry, scoreArr) {
+  if (CONFIG.MOCK_MODE) return; // mock: no submit needed
+  try {
+    await fetch(CONFIG.SUBMIT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        industry,
+        CC01: scoreArr[0], CC02: scoreArr[1],
+        CC03: scoreArr[2], CC04: scoreArr[3], CC05: scoreArr[4],
+      }),
+    });
+  } catch(e) { console.warn("Submit failed:", e); }
+}
+
+async function fetchRoom() {
+  if (CONFIG.MOCK_MODE) {
+    await new Promise(r => setTimeout(r, 700));
+    return MOCK_ROOM;
+  }
+  try {
+    const res  = await fetch(CONFIG.READ_URL);
+    const json = await res.json();
+    return (json.value || json).map(r => ({
+      industry: r.industry || "Other",
+      scores: [r.CC01, r.CC02, r.CC03, r.CC04, r.CC05],
+    }));
+  } catch(e) { return []; }
+}
+
+// ── App data ──────────────────────────────────────────────────────────────
+const C = {
+  bg:"#0A1212", card:"#0D2020", cardBdr:"#0D2A2A", cardLine:"#113030",
+  teal:"#00CAC5", tealDk:"#01605E", tealMid:"#049995", tealBdr:"#00CEC3",
+  amber:"#FFB300", white:"#FFFFFF", light:"#E3E5E5", grey:"#4A5568", greyLt:"#6B7280",
+  green:"#00C78D", red:"#FF3B30",
+  redBg:"#2D0A0A", amberBg:"#2D1F00", tealBg:"#002E2D", greenBg:"#002A1A",
+};
+
+const INDUSTRIES = [
+  "Electric / Utilities","Oil & Gas","Manufacturing",
+  "Water & Wastewater","Mining","Transportation","Chemical","Other",
+];
+
+const CONTROLS = [
+  { id:"ir",   num:"01", short:"IR Plan",      title:"OT Incident Response Plan",
+    desc:"Have an operations-informed incident response plan with a focus on system integrity and recovery capabilities during an attack.",
+    questions:[
+      {id:"ir1", text:"Have you developed an OT-specific incident response plan using threat scenarios for your industry?",                                               stage:"implement"},
+      {id:"ir2", text:"Have you collaborated with stakeholders and shared the plan across the enterprise?",                                                               stage:"implement"},
+      {id:"ir3", text:"Have you evolved your IR plan based on the latest threat intelligence (e.g. WorldView)?",                                                         stage:"operationalize"},
+      {id:"ir4", text:"Have you executed tabletop exercises (TTX) across all stakeholder groups with no major challenges reported in core capabilities?",                 stage:"operationalize"},
+      {id:"ir5", text:"Have you added consequence-based scenarios to your incident response plan?",                                                                       stage:"optimize"},
+      {id:"ir6", text:"Can you execute TTX without major challenges for both consequence-based and threat-based scenarios?",                                              stage:"optimize"},
+    ]},
+  { id:"arch", num:"02", short:"Architecture",  title:"Defensible Architecture",
+    desc:"Design architectures that support visibility, log collection, asset identification, segmentation, industrial DMZs, and process-communication enforcement.",
+    questions:[
+      {id:"arch1", text:"Do you have accurate, up-to-date OT asset inventories and network diagrams?",                                                                   stage:"implement"},
+      {id:"arch2", text:"Have you established IT/OT segmentation policies and procedures?",                                                                              stage:"implement"},
+      {id:"arch3", text:"Have you deployed ICS network visibility and monitoring software?",                                                                             stage:"implement"},
+      {id:"arch4", text:"Does your ICS network monitoring confirm that all external connections are known, controlled, and monitored?",                                  stage:"operationalize"},
+      {id:"arch5", text:"Have you completed a Collection Management Framework (CMF) for your crown jewel assets?",                                                       stage:"operationalize"},
+      {id:"arch6", text:"Is your CMF correlated with your threat scenarios?",                                                                                            stage:"operationalize"},
+      {id:"arch7", text:"Does your ICS network monitoring continuously confirm security controls remain effective?",                                                     stage:"optimize"},
+      {id:"arch8", text:"Is the CMF complete for all OT assets, not just crown jewels?",                                                                                 stage:"optimize"},
+      {id:"arch9", text:"Is the CMF integrated into your OT incident response plan?",                                                                                    stage:"optimize"},
+    ]},
+  { id:"viz",  num:"03", short:"Visibility",    title:"ICS Network Visibility & Monitoring",
+    desc:"Enable continuous network security monitoring of the ICS environment using protocol-aware toolsets and system of systems interaction analysis capabilities.",
+    questions:[
+      {id:"viz1", text:"Have you deployed ICS network visibility and monitoring software at all high-risk sites?",                                                       stage:"implement"},
+      {id:"viz2", text:"Do you have sensors on the OT side of the IT/OT boundary (L3/3.5)?",                                                                            stage:"implement"},
+      {id:"viz3", text:"Do you have sensors monitoring east-west traffic for crown jewel assets and related processes (L1-L2)?",                                        stage:"implement"},
+      {id:"viz4", text:"Does your visibility and monitoring meet the requirements identified in your incident response plan?",                                           stage:"operationalize"},
+      {id:"viz5", text:"Do your OT personnel have the skills to validate asset inventory, manage detections, triage incidents, mitigate NOW vulnerabilities, and monitor third-party access sessions?", stage:"operationalize"},
+      {id:"viz6", text:"Are critical alerts integrated into your existing SIEM for cybersecurity operations team visibility?",                                           stage:"operationalize"},
+      {id:"viz7", text:"Is visibility extended across the entire OT network at all high-risk sites?",                                                                    stage:"optimize"},
+      {id:"viz8", text:"Is logging centralized and automated?",                                                                                                          stage:"optimize"},
+      {id:"viz9", text:"Do your security personnel have the skills to execute advanced use cases including threat hunting and validation of security controls?",         stage:"optimize"},
+    ]},
+  { id:"sra",  num:"04", short:"Remote Access", title:"Secure Remote Access",
+    desc:"Identify all remote access points and allowed destination environments and implement on-demand access and multi-factor authentication (MFA) where possible.",
+    questions:[
+      {id:"sra1", text:"Are all external connections documented and monitored?",                                                                                         stage:"implement"},
+      {id:"sra2", text:"Is multi-factor authentication implemented between IT and OT networks?",                                                                         stage:"implement"},
+      {id:"sra3", text:"Are external connections limited by time, region, or other constraints?",                                                                        stage:"operationalize"},
+      {id:"sra4", text:"Can external connections be quickly disconnected with no OT impact?",                                                                            stage:"operationalize"},
+      {id:"sra5", text:"Are all external connections funneled through chokepoints such as jump-hosts with heightened monitoring?",                                       stage:"operationalize"},
+      {id:"sra6", text:"Are remote connections turned off by default and only enabled on demand?",                                                                       stage:"optimize"},
+      {id:"sra7", text:"Are SRA connections and vendors limited to as few as possible based on business need?",                                                          stage:"optimize"},
+    ]},
+  { id:"vuln", num:"05", short:"Vuln Mgmt",     title:"Risk-Based Vulnerability Management",
+    desc:"Understand the cyber digital controls in place and device operating conditions to make risk-based vulnerability management decisions regarding your OT environment.",
+    questions:[
+      {id:"vuln1", text:"Do you have a repeatable, scalable process to map vulnerabilities to assets?",                                                                  stage:"implement"},
+      {id:"vuln2", text:"Do you prioritize vulnerabilities with OT-specific risk mitigation?",                                                                           stage:"implement"},
+      {id:"vuln3", text:"Have you mitigated CVEs in your attack path including those related to ransomware and PIPEDREAM?",                                              stage:"implement"},
+      {id:"vuln4", text:"Are crown jewel assets and their vulnerabilities tracked, monitored, and updated?",                                                             stage:"operationalize"},
+      {id:"vuln5", text:"Are actions for OT vulnerabilities integrated into your service management framework?",                                                         stage:"operationalize"},
+      {id:"vuln6", text:"Are all OT assets and their vulnerabilities tracked, monitored, and updated?",                                                                  stage:"optimize"},
+    ]},
+];
+
+const MATURITY = [
+  {label:"Planning",         color:C.red,     bg:C.redBg},
+  {label:"Implementing",     color:C.amber,   bg:C.amberBg},
+  {label:"Operationalizing", color:C.teal,    bg:C.tealBg},
+  {label:"Optimizing",       color:C.green,   bg:C.greenBg},
+  {label:"Optimized",        color:"#7C3AED", bg:"#1E1035"},
+];
+
+const PROFILES = [
+  {key:"early",            label:"Early Stage",          color:C.red,     bg:C.redBg,   threshold:0.8,
+   desc:"Most foundational controls are not yet in place. The highest-value action right now is establishing visibility into what is happening on your OT network."},
+  {key:"building",         label:"Building Foundations", color:C.amber,   bg:C.amberBg, threshold:1.8,
+   desc:"You have started building your program. The priority is closing Implement gaps and making sure your IR plan reflects real OT threat scenarios."},
+  {key:"operationalizing", label:"Operationalizing",     color:C.teal,    bg:C.tealBg,  threshold:2.8,
+   desc:"Your foundations are largely in place. The focus is making controls consistent day-to-day and integrating with your broader security program."},
+  {key:"optimizing",       label:"Optimizing",           color:C.green,   bg:C.greenBg, threshold:3.5,
+   desc:"You have completed all Implement and Operationalize milestones and are working through Optimize. Focus on advanced use cases and consequence-based exercises."},
+  {key:"optimized",        label:"Optimized",            color:"#7C3AED", bg:"#1E1035",  threshold:5,
+   desc:"You have completed all milestones across all three stages for every control."},
+];
+
+function getProfile(scores) {
+  const avg = Object.values(scores).reduce((a,b)=>a+b,0)/5;
+  return PROFILES.find(p=>avg<p.threshold)||PROFILES[4];
+}
+
+function computeScore(controlId, answers) {
+  const ctrl = CONTROLS.find(c=>c.id===controlId);
+  const impl = ctrl.questions.filter(q=>q.stage==="implement").map(q=>answers[q.id]||"no");
+  if (impl.every(a=>a==="no")) return 0;
+  if (!impl.every(a=>a==="yes")) return 1;
+  const oper = ctrl.questions.filter(q=>q.stage==="operationalize").map(q=>answers[q.id]||"no");
+  if (!oper.length||!oper.every(a=>a==="yes")) return 2;
+  const opt  = ctrl.questions.filter(q=>q.stage==="optimize").map(q=>answers[q.id]||"no");
+  if (!opt.length||!opt.every(a=>a==="yes")) return 3;
+  return 4;
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────
+const S = {
+  wrap:{ background:C.bg, minHeight:"100vh", color:C.light, maxWidth:480, margin:"0 auto", paddingBottom:48 },
+  hdr:{ background:C.tealDk, padding:"13px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 },
+  logo:{ fontSize:16, fontWeight:800, color:C.white, letterSpacing:1.5 },
+  tag:{ fontSize:10, color:C.tealBdr, letterSpacing:0.8, marginTop:1 },
+  card:(extra={})=>({ background:C.card, border:`1px solid ${C.cardLine}`, borderRadius:12, padding:"18px", margin:"14px", ...extra }),
+  tBtn:{ background:C.teal, color:C.bg, border:"none", borderRadius:8, padding:"14px 24px", fontSize:15, fontWeight:700, width:"100%", letterSpacing:0.3 },
+  oBtn:{ background:"transparent", color:C.teal, border:`1px solid ${C.teal}`, borderRadius:8, padding:"12px 20px", fontSize:14, fontWeight:600, width:"100%" },
+  aBtn:(v,sel)=>({
+    background:sel===v?(v==="yes"?C.greenBg:v==="partial"?C.amberBg:C.redBg):"transparent",
+    border:`1.5px solid ${sel===v?(v==="yes"?C.green:v==="partial"?C.amber:C.red):C.grey}`,
+    borderRadius:10, padding:"14px 8px", flex:1,
+    color:sel===v?(v==="yes"?C.green:v==="partial"?C.amber:C.red):C.grey,
+    fontSize:13, fontWeight:sel===v?700:500, textAlign:"center",
+  }),
+  pill:(color,bg)=>({ background:bg, border:`1px solid ${color}`, borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700, color, display:"inline-block" }),
+  badge:{ background:C.tealDk, borderRadius:4, padding:"2px 7px", fontSize:10, fontWeight:700, color:C.amber, display:"inline-block" },
+  stageTag:(s)=>({ display:"inline-block",
+    background:(s==="implement"?C.amber:s==="operationalize"?C.teal:C.green)+"22",
+    border:`1px solid ${s==="implement"?C.amber:s==="operationalize"?C.teal:C.green}`,
+    borderRadius:20, padding:"2px 10px", fontSize:10, fontWeight:700,
+    color:s==="implement"?C.amber:s==="operationalize"?C.teal:C.green,
+    letterSpacing:0.5, marginBottom:12 }),
+  modeBadge:{ background:"#2D1F00", border:"1px solid #FFB300", borderRadius:4, padding:"2px 8px", fontSize:9, fontWeight:700, color:"#FFB300", letterSpacing:0.8 },
+};
+
+function Logo({ right }) {
+  return (
+    <div style={S.hdr}>
+      <div>
+        <div style={S.logo}>DRAGOS</div>
+        <div style={S.tag}>SAFEGUARDING CIVILIZATION</div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        {CONFIG.MOCK_MODE && <div style={S.modeBadge}>MOCK</div>}
+        {right && <div style={{fontSize:11,color:C.grey}}>{right}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ProgressBar({ done, total }) {
+  const pct = Math.round((done/total)*100);
+  return (
+    <div style={{flex:1}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+        <div style={{fontSize:11,color:C.tealBdr,fontWeight:600}}>{done} of {total} controls complete</div>
+        <div style={{fontSize:11,color:C.grey}}>{pct}%</div>
+      </div>
+      <div style={{background:C.tealDk,borderRadius:4,height:5}}>
+        <div style={{background:C.teal,borderRadius:4,height:5,width:`${pct}%`,transition:"width 0.3s"}}/>
+      </div>
+    </div>
+  );
+}
+
+function MaturityBar({ score }) {
+  return (
+    <div>
+      <div style={{display:"flex",gap:3,marginBottom:3}}>
+        {MATURITY.map((lv,li)=>(
+          <div key={li} style={{flex:1,height:6,borderRadius:3,
+            background:li<=score?lv.color:C.cardLine,opacity:li<score?0.45:1}}/>
+        ))}
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <div style={{fontSize:9,color:C.grey}}>Planning</div>
+        <div style={{fontSize:9,color:C.grey}}>Optimizing</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Room comparison with industry breakdown ───────────────────────────────
+function RoomComparison({ room, myScores, myIndustry, loading }) {
+  const [showIndustry, setShowIndustry] = useState(false);
+
+  if (loading) return (
+    <div style={S.card({})}>
+      <div style={{fontSize:10,color:C.teal,fontWeight:700,letterSpacing:0.5,marginBottom:8}}>LIVE ROOM COMPARISON</div>
+      <div style={{fontSize:12,color:C.grey}}>Loading room data…</div>
+    </div>
+  );
+
+  if (room.length <= 1) return (
+    <div style={S.card({})}>
+      <div style={{fontSize:10,color:C.teal,fontWeight:700,letterSpacing:0.5,marginBottom:8}}>LIVE ROOM COMPARISON</div>
+      <div style={{fontSize:12,color:C.grey,lineHeight:1.6}}>
+        {CONFIG.MOCK_MODE ? "Mock mode — simulated room data will appear here." : "You're the first to finish — room data will appear as others complete the assessment."}
+      </div>
+    </div>
+  );
+
+  // Industry count breakdown
+  const industryCounts = {};
+  room.forEach(r => { industryCounts[r.industry] = (industryCounts[r.industry]||0)+1; });
+  const industryList = Object.entries(industryCounts).sort((a,b)=>b[1]-a[1]);
+
+  // Same-industry responses
+  const peers = room.filter(r => r.industry === myIndustry);
+
+  return (
+    <div style={S.card({})}>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div>
+          <div style={{fontSize:10,color:C.teal,fontWeight:700,letterSpacing:0.5}}>
+            LIVE ROOM COMPARISON
+          </div>
+          <div style={{fontSize:11,color:C.grey,marginTop:2}}>
+            {room.length} responses · {industryList.length} {industryList.length===1?"industry":"industries"}
+          </div>
+        </div>
+        <button
+          style={{background:"transparent",border:`1px solid ${C.cardLine}`,borderRadius:6,
+            padding:"4px 10px",fontSize:10,color:C.grey,cursor:"pointer"}}
+          onClick={()=>setShowIndustry(v=>!v)}>
+          {showIndustry?"Hide industries":"By industry"}
+        </button>
+      </div>
+
+      {/* Industry pills */}
+      {showIndustry && (
+        <div style={{marginBottom:14,display:"flex",flexWrap:"wrap",gap:6}}>
+          {industryList.map(([ind,cnt])=>(
+            <div key={ind} style={{
+              background:ind===myIndustry?C.tealDk:C.cardBdr,
+              border:`1px solid ${ind===myIndustry?C.teal:C.cardLine}`,
+              borderRadius:20,padding:"3px 10px",fontSize:10,
+              color:ind===myIndustry?C.tealBdr:C.greyLt,fontWeight:ind===myIndustry?700:400
+            }}>
+              {ind} · {cnt}{ind===myIndustry?" (you)":""}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Per-control bars */}
+      {CONTROLS.map((c,ci)=>{
+        const counts=[0,0,0,0,0];
+        room.forEach(r=>{ if(r.scores[ci]!==undefined) counts[r.scores[ci]]++; });
+        const my = myScores[c.id]||0;
+        const rc = room.length;
+
+        // Peer average (same industry)
+        const peerAvg = peers.length > 0
+          ? peers.reduce((s,r)=>s+(r.scores[ci]||0),0)/peers.length
+          : null;
+
+        return (
+          <div key={c.id} style={{marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{fontSize:12,color:C.light,fontWeight:600}}>CC{c.num} {c.short}</div>
+              {peers.length>1 && peerAvg!==null && (
+                <div style={{fontSize:10,color:C.tealMid}}>
+                  {myIndustry} avg: {MATURITY[Math.round(peerAvg)]?.label}
+                </div>
+              )}
+            </div>
+            {MATURITY.map((m,mi)=>{
+              const p=rc>0?Math.round((counts[mi]/rc)*100):0;
+              const isMe=my===mi;
+              return (
+                <div key={mi} style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
+                  <div style={{width:86,fontSize:9,color:isMe?m.color:C.grey,
+                    fontWeight:isMe?700:400,flexShrink:0}}>{m.label}</div>
+                  <div style={{flex:1,height:10,background:C.cardBdr,borderRadius:5,overflow:"hidden"}}>
+                    <div style={{width:`${p}%`,height:"100%",
+                      background:isMe?m.color:C.tealMid,borderRadius:5,
+                      opacity:isMe?1:0.45,transition:"width 0.5s"}}/>
+                  </div>
+                  <div style={{width:30,fontSize:10,color:isMe?m.color:C.grey,
+                    fontWeight:isMe?700:400,textAlign:"right"}}>{p}%</div>
+                  {isMe&&<div style={{fontSize:9,color:m.color,fontWeight:700,width:22}}>YOU</div>}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────
+function App() {
+  const [screen,    setScreen]    = useState("welcome");
+  const [industry,  setIndustry]  = useState("");
+  const [answers,   setAnswers]   = useState({});
+  const [queue,     setQueue]     = useState([]);
+  const [qIdx,      setQIdx]      = useState(0);
+  const [scores,    setScores]    = useState({});
+  const [room,      setRoom]      = useState([]);
+  const [roomLoading,setRoomLoading]=useState(false);
+  const [copied,    setCopied]    = useState(false);
+  const [emailed,   setEmailed]   = useState(false);
+
+  const startSurvey = () => {
+    if (!industry) return;
+    const q = [];
+    CONTROLS.forEach(c => {
+      c.questions.filter(qu=>qu.stage==="implement")
+        .forEach(qu=>q.push({...qu,controlId:c.id,controlNum:c.num,controlShort:c.short}));
+    });
+    setQueue(q); setQIdx(0); setAnswers({}); setScreen("survey");
+  };
+
+  const finalize = useCallback(async (fa) => {
+    const ns = {};
+    CONTROLS.forEach(c=>{ ns[c.id]=computeScore(c.id,fa); });
+    setScores(ns);
+    setScreen("results");
+    window.scrollTo(0,0);
+    setRoomLoading(true);
+    const scoreArr = CONTROLS.map(c=>ns[c.id]);
+    await submitResult(industry, scoreArr);
+    const roomData = await fetchRoom();
+    setRoom(roomData);
+    setRoomLoading(false);
+  }, [industry]);
+
+  // Poll room every 15s while on results
+  useEffect(()=>{
+    if (screen!=="results") return;
+    const iv = setInterval(async()=>{
+      const data = await fetchRoom();
+      setRoom(data);
+    }, 15000);
+    return ()=>clearInterval(iv);
+  },[screen]);
+
+  const pick = useCallback((val)=>{
+    const q=queue[qIdx];
+    const na={...answers,[q.id]:val};
+    setAnswers(na);
+    const ctrl=CONTROLS.find(c=>c.id===q.controlId);
+    const ctrlImpl=queue.filter(qq=>qq.controlId===q.controlId&&qq.stage==="implement");
+    const lastImpl=ctrlImpl.slice(-1)[0];
+    if(q.id===lastImpl?.id){
+      const implAns=ctrl.questions.filter(qq=>qq.stage==="implement").map(qq=>na[qq.id]||"no");
+      const rest=queue.slice(qIdx+1);
+      const inject=implAns.every(a=>a==="yes")
+        ?ctrl.questions.filter(qq=>qq.stage==="operationalize").map(qq=>({...qq,controlId:ctrl.id,controlNum:ctrl.num,controlShort:ctrl.short}))
+        :[];
+      const nq=[...inject,...rest];
+      if(!nq.length){finalize(na);return;}
+      setQueue(nq);setQIdx(0);return;
+    }
+    const ctrlOper=queue.filter(qq=>qq.controlId===q.controlId&&qq.stage==="operationalize");
+    const lastOper=ctrlOper.slice(-1)[0];
+    if(ctrlOper.length&&q.id===lastOper?.id){
+      const operAns=ctrl.questions.filter(qq=>qq.stage==="operationalize").map(qq=>na[qq.id]||"no");
+      const rest=queue.slice(qIdx+1);
+      const inject=operAns.every(a=>a==="yes")
+        ?ctrl.questions.filter(qq=>qq.stage==="optimize").map(qq=>({...qq,controlId:ctrl.id,controlNum:ctrl.num,controlShort:ctrl.short}))
+        :[];
+      const nq=[...inject,...rest];
+      if(!nq.length){finalize(na);return;}
+      setQueue(nq);setQIdx(0);return;
+    }
+    if(qIdx>=queue.length-1){finalize(na);return;}
+    setQIdx(i=>i+1);
+  },[queue,qIdx,answers,finalize]);
+
+  const reset=()=>{setScreen("welcome");setIndustry("");setAnswers({});setQueue([]);setQIdx(0);setScores({});setRoom([]);window.scrollTo(0,0);};
+
+  const copyResults=()=>{
+    const p=getProfile(scores);
+    const lines=[
+      "OT Security Maturity Assessment — Dragos",
+      `Industry: ${industry}`,
+      `Overall: ${p.label}`,
+      "",
+      ...CONTROLS.map(c=>`CC${c.num} ${c.short}: ${MATURITY[scores[c.id]||0].label}`),
+      "",
+      "dragos.com",
+    ].join("\n");
+    if(navigator.clipboard) navigator.clipboard.writeText(lines).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});
+  };
+
+  const emailResults=()=>{
+    const p=getProfile(scores);
+    const body=[
+      "OT Security Maturity Assessment Results",
+      `Industry: ${industry}`,
+      `Overall Profile: ${p.label}`,
+      "",
+      ...CONTROLS.map(c=>`  CC${c.num} ${c.short}: ${MATURITY[scores[c.id]||0].label}`),
+      "",
+      p.desc,
+      "",
+      "Benchmarking Guide: hub.dragos.com/guide/secure-industrial-operations-sans-five-critical-controls",
+    ].join("%0D%0A");
+    window.location.href=`mailto:?subject=${encodeURIComponent("My OT Security Maturity — "+p.label)}&body=${body}`;
+    setEmailed(true);setTimeout(()=>setEmailed(false),2500);
+  };
+
+  // ── WELCOME ───────────────────────────────────────────────────────────
+  if (screen==="welcome") return (
+    <div style={S.wrap}>
+      <Logo/>
+      <div style={{padding:"28px 18px 0"}}>
+        <div style={{fontSize:11,color:C.teal,fontWeight:700,letterSpacing:1.2,marginBottom:10}}>BENCHMARKING GUIDE</div>
+        <div style={{fontSize:26,fontWeight:800,color:C.white,lineHeight:1.25,marginBottom:14}}>
+          Assess Your OT Cybersecurity Maturity
+        </div>
+        <div style={{fontSize:14,color:C.light,lineHeight:1.75,marginBottom:6}}>
+          Based on the SANS ICS 5 Critical Controls — built from real-world analysis of industrial cyber attacks. Answer each question honestly to benchmark where your program stands today.
+        </div>
+      </div>
+
+      <div style={{padding:"20px 18px 0"}}>
+        <div style={{fontSize:11,color:C.grey,fontWeight:700,letterSpacing:0.8,marginBottom:10}}>THE SANS ICS 5 CRITICAL CONTROLS</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20}}>
+          {CONTROLS.map(c=>(
+            <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,background:C.card,borderRadius:8,padding:"10px 12px",border:`1px solid ${C.cardLine}`}}>
+              <div style={S.badge}>CC{c.num}</div>
+              <div style={{fontSize:13,color:C.white,fontWeight:500}}>{c.title}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{padding:"0 18px"}}>
+        <div style={{fontSize:11,color:C.grey,fontWeight:700,letterSpacing:0.8,marginBottom:10}}>YOUR INDUSTRY</div>
+        <select value={industry} onChange={e=>setIndustry(e.target.value)} style={{
+          width:"100%",padding:"13px 14px",background:C.card,
+          color:industry?C.white:C.grey,border:`1.5px solid ${industry?C.teal:C.cardLine}`,
+          borderRadius:8,fontSize:14,appearance:"none",WebkitAppearance:"none",
+          backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2300CAC5' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+          backgroundRepeat:"no-repeat",backgroundPosition:"right 14px center",
+        }}>
+          <option value="">Select your industry…</option>
+          {INDUSTRIES.map(ind=>(
+            <option key={ind} value={ind} style={{background:C.card,color:C.white}}>{ind}</option>
+          ))}
+        </select>
+        <div style={{fontSize:11,color:C.grey,margin:"8px 0 20px",padding:"0 2px"}}>
+          Your industry is used to show how your results compare to peers in the same sector.
+        </div>
+        <button style={{...S.tBtn,opacity:industry?1:0.45,cursor:industry?"pointer":"not-allowed"}}
+          onClick={startSurvey} disabled={!industry}>
+          Start Assessment →
+        </button>
+      </div>
+
+      <div style={{margin:"20px 18px 0",padding:"14px",background:C.cardBdr,borderRadius:10}}>
+        <div style={{fontSize:11,color:C.grey,lineHeight:1.65}}>
+          Based on the <a href="https://hub.dragos.com/guide/secure-industrial-operations-sans-five-critical-controls" target="_blank">Dragos OT Cybersecurity Benchmarking Guide</a> and the SANS ICS 5 Critical Controls. No personal data is collected.
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── SURVEY ────────────────────────────────────────────────────────────
+  if (screen==="survey") {
+    const q=queue[qIdx];
+    if (!q) return null;
+    const curAns=answers[q.id];
+    const ctrlsDone=new Set(CONTROLS.filter(c=>c.questions.some(qq=>answers[qq.id]&&qq.controlId!==q.controlId)).map(c=>c.id));
+    const ctrl=CONTROLS.find(c=>c.id===q.controlId);
+    return (
+      <div style={S.wrap}>
+        <div style={S.hdr}><ProgressBar done={ctrlsDone.size} total={5}/></div>
+        <div style={{...S.card(),marginBottom:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+            <div style={S.badge}>CC{q.controlNum}</div>
+            <div style={{fontSize:13,fontWeight:600,color:C.white}}>{q.controlShort}</div>
+          </div>
+          <div style={S.stageTag(q.stage)}>
+            {q.stage==="implement"?"IMPLEMENT":q.stage==="operationalize"?"OPERATIONALIZE":"OPTIMIZE"}
+          </div>
+          <div style={{fontSize:16,color:C.white,lineHeight:1.65,fontWeight:500,marginBottom:24}}>{q.text}</div>
+          <div style={{display:"flex",gap:8}}>
+            {["yes","partial","no"].map(v=>(
+              <button key={v} style={S.aBtn(v,curAns)} onClick={()=>pick(v)}>
+                <div style={{fontSize:22,marginBottom:3}}>{v==="yes"?"✓":v==="partial"?"~":"✗"}</div>
+                <div style={{fontSize:13}}>{v==="yes"?"Yes":v==="partial"?"Partial":"No"}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{padding:"0 14px"}}>
+          <div style={{background:C.cardBdr,borderRadius:10,padding:"11px 13px"}}>
+            <div style={{fontSize:10,color:C.teal,fontWeight:700,marginBottom:3}}>ABOUT THIS CONTROL</div>
+            <div style={{fontSize:11,color:C.grey,lineHeight:1.55}}>{ctrl.desc}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6,margin:"14px 14px 0"}}>
+          {CONTROLS.map(c=>{
+            const done=ctrlsDone.has(c.id);
+            const cur=c.id===q.controlId;
+            return <div key={c.id} style={{flex:1,height:4,borderRadius:2,background:done?C.teal:cur?C.tealMid:C.tealDk}}/>;
+          })}
+        </div>
+        <div style={{display:"flex",gap:6,margin:"5px 14px 0"}}>
+          {CONTROLS.map(c=>(
+            <div key={c.id} style={{flex:1,fontSize:9,color:c.id===q.controlId?C.teal:C.grey,textAlign:"center",fontWeight:c.id===q.controlId?700:400}}>CC{c.num}</div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── RESULTS ───────────────────────────────────────────────────────────
+  if (screen==="results") {
+    const profile=getProfile(scores);
+    return (
+      <div style={S.wrap}>
+        <Logo right="Your Results"/>
+
+        <div style={{...S.card({borderColor:profile.color,borderWidth:1.5})}}>
+          <div style={{fontSize:10,color:profile.color,fontWeight:700,letterSpacing:1.2,marginBottom:4}}>OVERALL PROFILE</div>
+          <div style={{fontSize:28,fontWeight:800,color:profile.color,marginBottom:10,lineHeight:1.2}}>{profile.label}</div>
+          <div style={{fontSize:13,color:C.light,lineHeight:1.7}}>{profile.desc}</div>
+        </div>
+
+        <div style={{margin:"0 14px 8px",fontSize:10,color:C.grey,fontWeight:700,letterSpacing:0.8}}>PER-CONTROL BREAKDOWN</div>
+        {CONTROLS.map(c=>{
+          const sc=scores[c.id]||0;
+          const m=MATURITY[sc];
+          return (
+            <div key={c.id} style={{...S.card({}),marginTop:0,marginBottom:8,padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={S.badge}>CC{c.num}</div>
+                  <div style={{fontSize:13,fontWeight:600,color:C.white}}>{c.short}</div>
+                </div>
+                <div style={S.pill(m.color,m.bg)}>{m.label}</div>
+              </div>
+              <MaturityBar score={sc}/>
+            </div>
+          );
+        })}
+
+        <div style={{margin:"8px 14px 8px",fontSize:10,color:C.grey,fontWeight:700,letterSpacing:0.8}}>ROOM COMPARISON</div>
+        <RoomComparison room={room} myScores={scores} myIndustry={industry} loading={roomLoading}/>
+
+        <div style={{margin:"12px 14px 0",display:"flex",flexDirection:"column",gap:8}}>
+          <button style={S.tBtn} onClick={emailResults}>{emailed?"✓ Opening email…":"Email results to myself"}</button>
+          <button style={S.oBtn} onClick={copyResults}>{copied?"✓ Copied":"Copy results summary"}</button>
+          <button style={S.oBtn} onClick={reset}>Retake assessment</button>
+        </div>
+
+        <div style={{margin:"20px 14px 0",padding:"16px",background:C.cardBdr,borderRadius:10}}>
+          <div style={{fontSize:11,color:C.teal,fontWeight:700,marginBottom:8}}>DRAGOS RESOURCES</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <a href="https://hub.dragos.com/guide/secure-industrial-operations-sans-five-critical-controls" target="_blank" style={{fontSize:12,color:C.light}}>Benchmarking Guide: Assess Your OT Cybersecurity Maturity →</a>
+            <a href="https://www.dragos.com/ot-cybersecurity-year-in-review" target="_blank" style={{fontSize:12,color:C.light}}>2026 OT Cybersecurity Year in Review →</a>
+            <a href="https://www.dragos.com/services/ot-cybersecurity-assessment/" target="_blank" style={{fontSize:12,color:C.light}}>OT Cybersecurity Assessment →</a>
+            <a href="https://www.dragos.com/services/tabletop-exercise" target="_blank" style={{fontSize:12,color:C.light}}>Tabletop Exercises and Threat Baseline →</a>
+            <a href="https://www.dragos.com/dragos-worldview" target="_blank" style={{fontSize:12,color:C.light}}>Dragos WorldView Threat Intelligence →</a>
+          </div>
+        </div>
+
+        <div style={{margin:"12px 14px 0",fontSize:11,color:C.grey,lineHeight:1.6,textAlign:"center"}}>
+          No personal data is collected or stored.<br/>
+          <a href="https://www.dragos.com" target="_blank">dragos.com</a>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
