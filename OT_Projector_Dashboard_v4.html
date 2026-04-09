@@ -225,22 +225,14 @@ async function loadRoom() {
     try { json = JSON.parse(text); } catch(e) { return []; }
     const rows = json.value || json.body?.value || json.body || json || [];
     const arr = Array.isArray(rows) ? rows : [];
-    if (arr[0]) {
-      const keys = Object.keys(arr[0]);
-      const ccKeys = keys.filter(k => k.includes('C0') || k.includes('CC'));
-      console.log("CC-related keys:", JSON.stringify(ccKeys));
-      ccKeys.forEach(k => {
-        console.log(`Key "${k}" value:`, arr[0][k], "chars:", [...k].map(c=>c.charCodeAt(0)).join(","));
-      });
-    }
+
     const mapped = arr.filter(r => r && (r.CC01 !== undefined || r.OData__x0043_C01 !== undefined)).map(r => {
       const keys = Object.keys(r);
-      const c01key = keys.find(k => k.endsWith('C01') || k === 'CC01');
-      const c02key = keys.find(k => k.endsWith('C02') || k === 'CC02');
-      const c03key = keys.find(k => k.endsWith('C03') || k === 'CC03');
-      const c04key = keys.find(k => k.endsWith('C04') || k === 'CC04');
-      const c05key = keys.find(k => k.endsWith('C05') || k === 'CC05');
-      console.log("Keys found:", c01key, c02key, c03key, c04key, c05key);
+      const c01key = keys.find(k => k.endsWith('C01') || k.endsWith('C001') || k === 'CC01');
+      const c02key = keys.find(k => k.endsWith('C02') || k.endsWith('C002') || k === 'CC02');
+      const c03key = keys.find(k => k.endsWith('C03') || k.endsWith('C003') || k === 'CC03');
+      const c04key = keys.find(k => k.endsWith('C04') || k.endsWith('C004') || k === 'CC04');
+      const c05key = keys.find(k => k.endsWith('C05') || k.endsWith('C005') || k === 'CC05');
       return {
         industry: r.Industry || r.industry || "Other",
         scores: [
@@ -252,7 +244,6 @@ async function loadRoom() {
         ],
       };
     });
-    console.log("MAPPED first row:", JSON.stringify(mapped[0]));
     return mapped;
   } catch(e) { return []; }
 }
