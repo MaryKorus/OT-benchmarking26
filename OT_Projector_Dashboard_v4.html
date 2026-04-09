@@ -179,7 +179,7 @@ const BANDS = [
   {label:"Plan",              color:"#C8D0D8", text:"rgba(0,0,0,0.8)",       scores:[0]},
   {label:"Implement",         color:"#FFB300", text:"rgba(0,0,0,0.8)",       scores:[1]},
   {label:"Operationalize",    color:"#00CAC5", text:"rgba(0,0,0,0.8)",       scores:[2]},
-  {label:"Optimize",          color:"#00C78D", text:"rgba(0,0,0,0.8)",       scores:[3,4]},
+  {label:"Optimize",          color:"#00C78D", text:"rgba(0,0,0,0.8)",       scores:[3]},
 ];
 
 const PROFILES = [
@@ -232,15 +232,19 @@ async function loadRoom() {
       const c03key = keys.find(k => k.endsWith('C03') || k.endsWith('C003') || k === 'CC03');
       const c04key = keys.find(k => k.endsWith('C04') || k.endsWith('C004') || k === 'CC04');
       const c05key = keys.find(k => k.endsWith('C05') || k.endsWith('C005') || k === 'CC05');
-      return {
-        industry: r.Industry || r.industry || "Other",
-        scores: [
+      const scores = [
           Number(c01key ? r[c01key] : 0)||0,
           Number(c02key ? r[c02key] : 0)||0,
           Number(c03key ? r[c03key] : 0)||0,
           Number(c04key ? r[c04key] : 0)||0,
           Number(c05key ? r[c05key] : 0)||0,
-        ],
+        ];
+      console.log("keys:", c01key, c02key, c03key, c04key, c05key);
+      console.log("raw values:", r[c01key], r[c02key], r[c03key], r[c04key], r[c05key]);
+      console.log("scores:", scores);
+      return {
+        industry: r.Industry || r.industry || "Other",
+        scores,
       };
     });
     return mapped;
