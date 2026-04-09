@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>OT Maturity — Live Room | Dragos</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#080F0F;height:100vh;overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:#E3E5E5}
+.shell{display:flex;flex-direction:column;height:100vh}
+
+/* Header */
+.hdr{background:#01605E;padding:0 40px;height:60px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:20px;font-weight:900;color:#fff;letter-spacing:2.5px}
+.hdr-title{font-size:13px;color:#9FE1CB;letter-spacing:1.8px;font-weight:600;margin-left:18px}
+.hdr-left{display:flex;align-items:baseline}
+.hdr-right{display:flex;align-items:center;gap:20px}
+.live-wrap{display:flex;align-items:center;gap:7px}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#00C78D;
+  animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+.live-label{font-size:11px;color:#00C78D;font-weight:700;letter-spacing:1px}
+.counter-wrap{text-align:right}
+.counter-num{font-size:28px;font-weight:800;color:#fff;line-height:1;transition:color .3s}
+.counter-num.flash{color:#00CAC5}
+.counter-label{font-size:10px;color:#9FE1CB;letter-spacing:1.2px}
+.mock-badge{background:#2D1F00;border:1px solid #FFB300;border-radius:4px;
+  padding:3px 9px;font-size:10px;font-weight:700;color:#FFB300;letter-spacing:1px}
+
+/* Waiting */
+.waiting{flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:16px}
+.waiting-ring{width:52px;height:52px;border:3px solid #0D3030;
+  border-top-color:#00CAC5;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.waiting-text{font-size:20px;color:#3A5050;font-weight:500}
+.waiting-sub{font-size:13px;color:#2A3A3A}
+
+/* Main layout */
+.main{flex:1;display:flex;min-height:0;gap:0}
+.controls-col{flex:1;display:flex;flex-direction:column;
+  justify-content:space-evenly;padding:12px 28px 12px 40px;min-height:0}
+.industry-col{width:240px;flex-shrink:0;padding:16px 20px 16px 0;
+  display:flex;flex-direction:column;gap:8px;border-left:1px solid #0C1E1E;
+  padding-left:20px}
+
+/* Control block */
+.ctrl-block{display:flex;gap:20px;align-items:flex-start}
+.ctrl-id{flex-shrink:0;width:190px;padding-top:2px}
+.ctrl-badge{display:inline-block;background:#01605E;color:#FFB300;
+  font-size:10px;font-weight:800;padding:2px 8px;border-radius:3px;
+  letter-spacing:.5px;margin-bottom:4px}
+.ctrl-name{font-size:14px;font-weight:700;color:#fff;line-height:1.25}
+.ctrl-bars{flex:1;display:flex;flex-direction:column;gap:5px}
+
+/* Bar row */
+.bar-row{display:flex;align-items:center;gap:9px}
+.bar-tier{width:142px;flex-shrink:0;font-size:10px;font-weight:600;
+  text-align:right;letter-spacing:.3px}
+.bar-track{flex:1;height:26px;background:#0C1E1E;border-radius:4px;
+  overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:4px;display:flex;align-items:center;
+  transition:width .7s cubic-bezier(.4,0,.2,1);min-width:0}
+.bar-fill.flash{animation:barFlash .55s ease-out}
+@keyframes barFlash{0%{filter:brightness(2.2)}100%{filter:brightness(1)}}
+.bar-inner{font-size:11px;font-weight:700;padding:0 7px;white-space:nowrap;overflow:hidden}
+.bar-pct{width:40px;flex-shrink:0;text-align:right;font-size:12px;font-weight:700}
+.bar-n{width:44px;flex-shrink:0;font-size:10px;color:#2A4040}
+
+/* Divider */
+.ctrl-divider{height:1px;background:#0C1E1E;margin:0 0 0 210px}
+
+/* Industry panel */
+.ind-header{font-size:10px;color:#4A5568;font-weight:700;letter-spacing:1.2px;margin-bottom:4px}
+.ind-row{display:flex;justify-content:space-between;align-items:center;
+  padding:5px 8px;border-radius:5px;margin-bottom:3px}
+.ind-name{font-size:11px;font-weight:500}
+.ind-count{font-size:11px;font-weight:700}
+.ind-bar-wrap{height:3px;background:#0C1E1E;border-radius:2px;margin-top:3px;overflow:hidden}
+.ind-bar-fill{height:100%;border-radius:2px;transition:width .6s ease}
+
+/* Footer */
+.footer{flex-shrink:0;height:48px;padding:0 40px;background:#050C0C;
+  border-top:1px solid #0C1E1E;display:flex;align-items:center;justify-content:space-between}
+.legend{display:flex;gap:20px;align-items:center}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#4A5568}
+.leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.room-avg-wrap{display:flex;align-items:center;gap:10px}
+.room-avg-lbl{font-size:10px;color:#3A5050;letter-spacing:1.2px}
+.room-avg-val{font-size:17px;font-weight:800;transition:color .4s}
+
+/* Toast */
+.toast{position:fixed;top:68px;right:28px;background:#002A1A;
+  border:1px solid #00C78D;border-radius:7px;padding:8px 14px;
+  font-size:12px;color:#00C78D;font-weight:600;
+  opacity:0;transform:translateY(-6px);
+  transition:opacity .2s,transform .2s;pointer-events:none;z-index:100}
+.toast.show{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="logo">DRAGOS</div>
+      <div class="hdr-title">OT SECURITY MATURITY &nbsp;·&nbsp; LIVE ROOM RESULTS</div>
+    </div>
+    <div class="hdr-right">
+      <div id="mockBadge" class="mock-badge" style="display:none">MOCK MODE</div>
+      <div class="live-wrap">
+        <div class="live-dot"></div>
+        <div class="live-label">LIVE</div>
+      </div>
+      <div class="counter-wrap">
+        <div class="counter-num" id="counterNum">0</div>
+        <div class="counter-label">RESPONSES</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="waitingState" class="waiting">
+    <div class="waiting-ring"></div>
+    <div class="waiting-text">Waiting for responses…</div>
+    <div class="waiting-sub">Room comparison will appear as attendees complete the assessment</div>
+  </div>
+
+  <div id="mainContent" class="main" style="display:none">
+    <div class="controls-col" id="controlsCol"></div>
+    <div class="industry-col" id="industryCol">
+      <div class="ind-header">INDUSTRIES IN ROOM</div>
+      <div id="industryList"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#FF3B30"></div>Planning</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#FFB300"></div>Implementing</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#00CAC5"></div>Operationalizing</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#00C78D"></div>Optimizing+</div>
+    </div>
+    <div class="room-avg-wrap">
+      <div class="room-avg-lbl">ROOM AVERAGE</div>
+      <div class="room-avg-val" id="roomAvgVal" style="color:#3A5050">—</div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                        CONFIGURATION                            ║
+// ║  This is the only section you need to edit.                     ║
+// ╚══════════════════════════════════════════════════════════════════╝
+const CONFIG = {
+
+  // true  = use simulated data (no backend needed)
+  // false = use the Power Automate URL below
+  MOCK_MODE: false,
+
+  // Paste your Power Automate READ flow URL here, then set MOCK_MODE: false
+  READ_URL: "https://default7af3104dffed46a5bae925f0612d49.c5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/8e082787aacc4a7c99be610bc9bdc89a/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=qBPk1ZsgCG0l4BT9wcCIYVdCvRAjyYlN35OzJ2GA2FI",
+
+  // How often to check for new responses (milliseconds)
+  POLL_INTERVAL: 10000,
+
+};
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║                    END OF CONFIGURATION                         ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+const CONTROLS = [
+  {num:"01", name:"ICS Incident Response Plan"},
+  {num:"02", name:"Defensible Architecture"},
+  {num:"03", name:"Network Visibility & Monitoring"},
+  {num:"04", name:"Secure Remote Access"},
+  {num:"05", name:"Risk-Based Vulnerability Mgmt"},
+];
+
+// 4 bands: Optimizing(3) + Optimized(4) merged
+const BANDS = [
+  {label:"Planning",         color:"#FF3B30", text:"rgba(255,255,255,0.9)", scores:[0]},
+  {label:"Implementing",     color:"#FFB300", text:"rgba(0,0,0,0.8)",       scores:[1]},
+  {label:"Operationalizing", color:"#00CAC5", text:"rgba(0,0,0,0.8)",       scores:[2]},
+  {label:"Optimizing+",      color:"#00C78D", text:"rgba(0,0,0,0.8)",       scores:[3,4]},
+];
+
+const PROFILES = [
+  {label:"Early Stage",          threshold:0.8,  color:"#FF3B30"},
+  {label:"Building Foundations", threshold:1.8,  color:"#FFB300"},
+  {label:"Operationalizing",     threshold:2.8,  color:"#00CAC5"},
+  {label:"Optimizing",           threshold:3.5,  color:"#00C78D"},
+  {label:"Optimized",            threshold:99,   color:"#7C3AED"},
+];
+
+// Industry colors for the side panel
+const IND_COLORS = ["#00CAC5","#FFB300","#00C78D","#7C3AED","#FF3B30","#049995","#FF9500","#5AC8FA"];
+
+// ── Mock data ─────────────────────────────────────────────────────────────
+const MOCK_ALL = [
+  {industry:"Manufacturing",        scores:[1,1,0,1,1]},
+  {industry:"Electric / Utilities", scores:[2,1,1,0,1]},
+  {industry:"Oil & Gas",            scores:[1,2,1,1,0]},
+  {industry:"Manufacturing",        scores:[0,1,0,0,1]},
+  {industry:"Water & Wastewater",   scores:[2,2,1,1,2]},
+  {industry:"Electric / Utilities", scores:[1,1,1,0,1]},
+  {industry:"Oil & Gas",            scores:[2,1,2,1,1]},
+  {industry:"Manufacturing",        scores:[1,0,1,1,0]},
+  {industry:"Chemical",             scores:[3,2,2,1,2]},
+  {industry:"Electric / Utilities", scores:[2,2,1,2,1]},
+  {industry:"Manufacturing",        scores:[1,2,1,1,2]},
+  {industry:"Oil & Gas",            scores:[2,1,1,1,1]},
+  {industry:"Mining",               scores:[3,2,2,2,3]},
+  {industry:"Manufacturing",        scores:[1,1,0,1,1]},
+];
+let mockIdx = 0;
+
+// ── Data source ───────────────────────────────────────────────────────────
+async function loadRoom() {
+  if (CONFIG.MOCK_MODE) {
+    if (mockIdx < MOCK_ALL.length) mockIdx++;
+    return MOCK_ALL.slice(0, mockIdx);
+  }
+  try {
+    const res  = await fetch(CONFIG.READ_URL);
+    const json = await res.json();
+    return (json.value || json).map(r => ({
+      industry: r.industry || "Other",
+      scores: [r.CC01, r.CC02, r.CC03, r.CC04, r.CC05],
+    }));
+  } catch(e) { return []; }
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+let prevCount = 0;
+let builtUI   = false;
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+// ── Build control UI skeleton ─────────────────────────────────────────────
+function buildUI() {
+  const col = document.getElementById('controlsCol');
+  col.innerHTML = '';
+  CONTROLS.forEach((ctrl, ci) => {
+    const block = document.createElement('div');
+    block.className = 'ctrl-block';
+    const idDiv = document.createElement('div');
+    idDiv.className = 'ctrl-id';
+    idDiv.innerHTML = `<div class="ctrl-badge">CC${ctrl.num}</div><div class="ctrl-name">${ctrl.name}</div>`;
+    const barsDiv = document.createElement('div');
+    barsDiv.className = 'ctrl-bars';
+    BANDS.forEach((band, bi) => {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML = `
+        <div class="bar-tier" style="color:${band.color}">${band.label}</div>
+        <div class="bar-track">
+          <div class="bar-fill" id="f-${ci}-${bi}" style="width:0%;background:${band.color}">
+            <div class="bar-inner" id="fi-${ci}-${bi}" style="color:${band.text}"></div>
+          </div>
+        </div>
+        <div class="bar-pct" id="fp-${ci}-${bi}" style="color:${band.color}">—</div>
+        <div class="bar-n"   id="fn-${ci}-${bi}"></div>
+      `;
+      barsDiv.appendChild(row);
+    });
+    block.appendChild(idDiv);
+    block.appendChild(barsDiv);
+    col.appendChild(block);
+    if (ci < CONTROLS.length-1) {
+      const d = document.createElement('div');
+      d.className = 'ctrl-divider';
+      col.appendChild(d);
+    }
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render(data) {
+  const n = data.length;
+
+  // Counter
+  if (n > prevCount) {
+    const el = document.getElementById('counterNum');
+    el.textContent = n;
+    el.classList.add('flash');
+    setTimeout(()=>el.classList.remove('flash'), 400);
+    if (prevCount > 0) toast(`+1 new response · ${n} total`);
+  } else {
+    document.getElementById('counterNum').textContent = n;
+  }
+
+  if (n === 0) {
+    document.getElementById('waitingState').style.display = 'flex';
+    document.getElementById('mainContent').style.display  = 'none';
+    document.getElementById('roomAvgVal').textContent = '—';
+    prevCount = 0;
+    return;
+  }
+
+  document.getElementById('waitingState').style.display = 'none';
+  document.getElementById('mainContent').style.display  = 'flex';
+
+  if (!builtUI) { buildUI(); builtUI = true; }
+
+  const isNew = n > prevCount;
+
+  // Controls
+  CONTROLS.forEach((ctrl, ci) => {
+    BANDS.forEach((band, bi) => {
+      const count = data.filter(r => band.scores.includes(r.scores[ci])).length;
+      const pct   = (count / n) * 100;
+      const fill  = document.getElementById('f-'  + ci + '-' + bi);
+      const inner = document.getElementById('fi-' + ci + '-' + bi);
+      const pctEl = document.getElementById('fp-' + ci + '-' + bi);
+      const nEl   = document.getElementById('fn-' + ci + '-' + bi);
+      const prev  = parseFloat(fill.style.width) || 0;
+      const moved = isNew && Math.abs(pct - prev) > 0.5;
+      fill.style.width = pct + '%';
+      if (moved) {
+        fill.classList.remove('flash');
+        void fill.offsetWidth;
+        fill.classList.add('flash');
+      }
+      inner.textContent = pct >= 10 ? count : '';
+      pctEl.textContent = pct > 0 ? Math.round(pct) + '%' : '—';
+      pctEl.style.color = pct > 0 ? band.color : '#2A4040';
+      nEl.textContent   = count > 0 ? count + '/' + n : '';
+    });
+  });
+
+  // Industry panel
+  const counts = {};
+  data.forEach(r => { counts[r.industry] = (counts[r.industry]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const maxCnt = sorted[0]?.[1] || 1;
+  const indList = document.getElementById('industryList');
+  indList.innerHTML = '';
+  sorted.forEach(([ind, cnt], i) => {
+    const color = IND_COLORS[i % IND_COLORS.length];
+    const pct   = Math.round((cnt/n)*100);
+    const div   = document.createElement('div');
+    div.className = 'ind-row';
+    div.style.background = color + '14';
+    div.innerHTML = `
+      <div>
+        <div class="ind-name" style="color:${color}">${ind}</div>
+        <div class="ind-bar-wrap">
+          <div class="ind-bar-fill" style="width:${(cnt/maxCnt)*100}%;background:${color}"></div>
+        </div>
+      </div>
+      <div class="ind-count" style="color:${color}">${cnt}&nbsp;<span style="font-size:9px;opacity:.6">${pct}%</span></div>
+    `;
+    indList.appendChild(div);
+  });
+
+  // Room average
+  const allScores = data.flatMap(r => r.scores);
+  const avg       = allScores.reduce((s,v)=>s+v,0) / allScores.length;
+  const prof      = PROFILES.find(p=>avg<p.threshold)||PROFILES[4];
+  const avgEl     = document.getElementById('roomAvgVal');
+  avgEl.textContent = prof.label;
+  avgEl.style.color = prof.color;
+
+  prevCount = n;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+if (CONFIG.MOCK_MODE) {
+  document.getElementById('mockBadge').style.display = 'block';
+}
+
+async function tick() {
+  const data = await loadRoom();
+  render(data);
+}
+
+tick();
+setInterval(tick, CONFIG.MOCK_MODE ? 4000 : CONFIG.POLL_INTERVAL);
+</script>
+</body>
+</html>
