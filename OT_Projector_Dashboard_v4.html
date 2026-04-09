@@ -225,20 +225,34 @@ async function loadRoom() {
     try { json = JSON.parse(text); } catch(e) { return []; }
     const rows = json.value || json.body?.value || json.body || json || [];
     const arr = Array.isArray(rows) ? rows : [];
-    console.log("RAW first row keys:", arr[0] ? Object.keys(arr[0]).join(", ") : "no rows");
-    console.log("RAW first row:", JSON.stringify(arr[0]));
-    const mapped = arr.filter(r => r && (r.CC01 !== undefined || r.OData__x0043_C01 !== undefined)).map(r => ({
-      industry: r.Industry || r.industry || "Other",
-      scores: [
-        Number(r.CC01 || r.OData__x0043_C01)||0,
-        Number(r.CC02 || r.OData__x0043_C02)||0,
-        Number(r.CC03 || r.OData__x0043_C03)||0,
-        Number(r.CC04 || r.OData__x0043_C04)||0,
-        Number(r.CC05 || r.OData__x0043_C05)||0
-      ],
-    }));
+    if (arr[0]) {
+      const keys = Object.keys(arr[0]);
+      const ccKeys = keys.filter(k => k.includes('C0') || k.includes('CC'));
+      console.log("CC-related keys:", JSON.stringify(ccKeys));
+      ccKeys.forEach(k => {
+        console.log(`Key "${k}" value:`, arr[0][k], "chars:", [...k].map(c=>c.charCodeAt(0)).join(","));
+      });
+    }
+    const mapped = arr.filter(r => r && (r.CC01 !== undefined || r.OData__x0043_C01 !== undefined)).map(r => {
+      const keys = Object.keys(r);
+      const c01key = keys.find(k => k.endsWith('C01') || k === 'CC01');
+      const c02key = keys.find(k => k.endsWith('C02') || k === 'CC02');
+      const c03key = keys.find(k => k.endsWith('C03') || k === 'CC03');
+      const c04key = keys.find(k => k.endsWith('C04') || k === 'CC04');
+      const c05key = keys.find(k => k.endsWith('C05') || k === 'CC05');
+      console.log("Keys found:", c01key, c02key, c03key, c04key, c05key);
+      return {
+        industry: r.Industry || r.industry || "Other",
+        scores: [
+          Number(c01key ? r[c01key] : 0)||0,
+          Number(c02key ? r[c02key] : 0)||0,
+          Number(c03key ? r[c03key] : 0)||0,
+          Number(c04key ? r[c04key] : 0)||0,
+          Number(c05key ? r[c05key] : 0)||0,
+        ],
+      };
+    });
     console.log("MAPPED first row:", JSON.stringify(mapped[0]));
-    console.log("Total rows:", mapped.length);
     return mapped;
   } catch(e) { return []; }
 }
